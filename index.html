@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nghiên cứu xác suất xúc xắc</title>
+    <style>
+        /* CSS - Giao diện */
+        body {
+            background-color: #2b1d12;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 20px;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: #e6c88b;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .game-container {
+            position: relative;
+            width: 260px;
+            height: 260px;
+            margin-bottom: 15px;
+        }
+
+        /* Bát đựng xúc xắc */
+        .bowl {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle, #c99b58 0%, #5c3a1e 80%, #2b1d12 100%);
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.8), 0 10px 20px rgba(0,0,0,0.5);
+            border: 4px solid #b8864b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+        }
+
+        /* Khu vực xúc xắc */
+        .dice-area {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 80%;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .dice-area.show { opacity: 1; }
+
+        /* Nắp đậy */
+        .lid {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle, #f5d796 0%, #b8864b 60%, #5c3a1e 100%);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.6), inset 0 0 20px rgba(255,255,255,0.5);
+            border: 4px solid #d4af37;
+            z-index: 10;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            touch-action: none;
+        }
+
+        .lid:active { cursor: grabbing; }
+
+        .lid.closed { transform: translate(0, 0) scale(1); opacity: 1; }
+        .lid.open { display: none; }
+
+        .lid-text {
+            color: #5c3a1e;
+            font-weight: bold;
+            font-size: 11px;
+            margin-top: 5px;
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+
+        /* Xúc xắc */
+        .dice {
+            width: 45px;
+            height: 45px;
+            background-color: #e01a1a;
+            border-radius: 8px;
+            box-shadow: inset 0 -4px 8px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.5);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            padding: 4px;
+            box-sizing: border-box;
+        }
+
+        .dot {
+            background-color: white;
+            border-radius: 50%;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+            margin: auto;
+            width: 8px;
+            height: 8px;
+        }
+
+        .dot-1 { grid-area: 2 / 2; }
+        .dot-2 { grid-area: 1 / 1; }
+        .dot-3 { grid-area: 1 / 3; }
+        .dot-4 { grid-area: 3 / 1; }
+        .dot-5 { grid-area: 3 / 3; }
+        .dot-6 { grid-area: 2 / 1; }
+        .dot-7 { grid-area: 2 / 3; }
+
+        /* Rung lắc */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            20% { transform: translate(-2px, 0px) rotate(-2deg); }
+            40% { transform: translate(2px, 1px) rotate(2deg); }
+            60% { transform: translate(-1px, -1px) rotate(0deg); }
+            80% { transform: translate(1px, 2px) rotate(-2deg); }
+            100% { transform: translate(-1px, -2px) rotate(2deg); }
+        }
+
+        .shaking { animation: shake 0.2s infinite; }
+
+        /* Nút bấm */
+        button {
+            padding: 10px 30px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #2b1d12;
+            background: linear-gradient(to bottom, #fceabb, #d4af37);
+            border: 2px solid #b8864b;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+            transition: transform 0.1s;
+            margin-bottom: 20px;
+        }
+
+        button:active { transform: scale(0.95); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* Biểu đồ đường (Phóng to) */
+        .chart-container {
+            width: 95vw;
+            max-width: 800px; /* Kích thước tối đa cho màn hình lớn */
+            display: flex;
+            justify-content: center;
+            padding: 0 10px;
+            box-sizing: border-box;
+        }
+
+        canvas {
+            background-color: #1a100c;
+            border: 2px solid #4a3525;
+            border-radius: 8px;
+            width: 100%;
+            height: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <div class="bowl">
+            <div class="dice-area" id="dice-area"></div>
+        </div>
+        <div class="lid closed" id="lid">
+            <div style="font-size: 35px; color: #b8864b; pointer-events: none;">🎲</div>
+            <div class="lid-text" id="lid-text">Kéo Ra Khỏi Đĩa Để Mở</div>
+        </div>
+    </div>
+
+    <button id="roll-btn">Phiên Mới</button>
+
+    <!-- Biểu đồ 23 phiên -->
+    <div class="chart-container">
+        <canvas id="myChart" width="700" height="200"></canvas>
+    </div>
+
+    <script>
+        const diceArea = document.getElementById('dice-area');
+        const lid = document.getElementById('lid');
+        const lidText = document.getElementById('lid-text');
+        const rollBtn = document.getElementById('roll-btn');
+        
+        const canvas = document.getElementById('myChart');
+        const ctx = canvas.getContext('2d');
+
+        let isRolling = false;
+        let currentDice = []; 
+        let allHistory = []; 
+        const MAX_CHART_HISTORY = 23;
+
+        // --- THUẬT TOÁN XÁC XUẤT CRYPTO (CƠ BẢN) ---
+        function getCryptoRandomInt(min, max) {
+            const range = max - min + 1;
+            const maxValid = Math.floor(256 / range) * range;
+            const array = new Uint8Array(1);
+            let value;
+            do {
+                window.crypto.getRandomValues(array);
+                value = array[0];
+            } while (value >= maxValid);
+            return min + (value % range);
+        }
+
+        function getRandomDiceValue() {
+            return getCryptoRandomInt(1, 6);
+        }
+
+        function createDiceElement(value) {
+            const dice = document.createElement('div');
+            dice.className = 'dice';
+            const dotPositions = {
+                1: ['dot-1'], 2: ['dot-2', 'dot-5'], 3: ['dot-2', 'dot-1', 'dot-5'],
+                4: ['dot-2', 'dot-3', 'dot-4', 'dot-5'], 5: ['dot-2', 'dot-3', 'dot-4', 'dot-5', 'dot-1'],
+                6: ['dot-2', 'dot-3', 'dot-4', 'dot-5', 'dot-6', 'dot-7']
+            };
+            dotPositions[value].forEach(pos => {
+                const dot = document.createElement('div');
+                dot.className = `dot ${pos}`;
+                dice.appendChild(dot);
+            });
+            return dice;
+        }
+
+        // Hàm ép xúc xắc ra tổng điểm mong muốn
+        function generateDiceInRange(minTotal, maxTotal) {
+            let d1, d2, d3, total;
+            do {
+                d1 = getRandomDiceValue();
+                d2 = getRandomDiceValue();
+                d3 = getRandomDiceValue();
+                total = d1 + d2 + d3;
+            } while (total < minTotal || total > maxTotal);
+            return [d1, d2, d3];
+        }
+
+        function renderDiceFromArray(diceArray) {
+            diceArea.innerHTML = '';
+            diceArray.forEach(val => {
+                diceArea.appendChild(createDiceElement(val));
+            });
+            diceArea.classList.add('show');
+        }
+
+        // --- CẬP NHẬT LỊCH SỬ & VẼ BIỂU ĐỒ ---
+        function updateHistory(totalScore) {
+            allHistory.push(totalScore);
+            if (allHistory.length > MAX_CHART_HISTORY) {
+                allHistory.shift(); 
+            }
+            drawChart();
+        }
+
+        function drawChart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const rows = 15; // 3 đến 18
+            const cols = MAX_CHART_HISTORY - 1; // 22 khoảng
+            
+            // Vẽ lưới nền
+            ctx.strokeStyle = '#3a2b20';
+            ctx.lineWidth = 1;
+            
+            for(let i=0; i<=rows; i++) {
+                let y = i * (canvas.height / rows);
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+            for(let i=0; i<=cols; i++) {
+                let x = i * (canvas.width / cols);
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            
+            const data = allHistory;
+            if (data.length === 0) return;
+            
+            const points = data.map((score, index) => {
+                const x = index * (canvas.width / cols);
+                const y = canvas.height - ((score - 3) / 15) * canvas.height;
+                return { x, y, score };
+            });
+            
+            // Vẽ đường nối
+            ctx.beginPath();
+            ctx.strokeStyle = '#e6c88b';
+            ctx.lineWidth = 3;
+            points.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.stroke();
+            
+            // Vẽ các nút tròn
+            points.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); // Tăng bán kính lên 14 cho dễ nhìn
+                
+                if (p.score >= 11) {
+                    // Tài: Đen viền vàng, chữ trắng
+                    ctx.fillStyle = '#111';
+                    ctx.fill();
+                    ctx.strokeStyle = '#d4af37';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    ctx.fillStyle = '#fff';
+                } else {
+                    // Xỉu: Vàng nhạt viền nâu, chữ đen
+                    ctx.fillStyle = '#f5d796';
+                    ctx.fill();
+                    ctx.strokeStyle = '#8b6508';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    ctx.fillStyle = '#000';
+                }
+                
+                ctx.font = 'bold 14px Arial'; // Tăng kích thước chữ
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.score, p.x, p.y + 1);
+            });
+        }
+
+        // --- THUẬT TOÁN 30 PHIÊN (23 BÌNH THƯỜNG, 7 BIAS) ---
+        let sessionPool = [];
+        
+        function initSessionPool() {
+            // Tạo mảng 30 phần tử: 23 normal, 7 bias
+            sessionPool = Array(23).fill('normal').concat(Array(7).fill('bias'));
+            // Xáo trộn mảng (Fisher-Yates)
+            for (let i = sessionPool.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [sessionPool[i], sessionPool[j]] = [sessionPool[j], sessionPool[i]];
+            }
+        }
+        
+        // Khởi tạo mảng ban đầu
+        initSessionPool();
+
+        // --- Luồng Game ---
+        function startNewRound() {
+            if (isRolling) return;
+            
+            lid.classList.remove('open');
+            lid.classList.add('closed');
+            
+            lid.style.transition = ''; 
+            lid.style.transform = ''; 
+            lid.style.opacity = '';
+            
+            diceArea.classList.remove('show'); 
+
+            rollBtn.disabled = true;
+            isRolling = true;
+            clickCount = 0; // Reset click đếm
+
+            const bowl = document.querySelector('.bowl');
+            bowl.classList.add('shaking');
+
+            setTimeout(() => {
+                bowl.classList.remove('shaking');
+                
+                // Lấy loại phiên hiện tại (normal hoặc bias)
+                let currentMode = sessionPool.pop();
+                if (sessionPool.length === 0) initSessionPool(); // Nếu hết 30 phiên thì tạo lại
+
+                if (currentMode === 'bias') {
+                    // Thuật toán Bias: Ép ngược lại với xu hướng 5 phiên gần nhất
+                    let last5 = allHistory.slice(-5);
+                    let taiCount = last5.filter(x => x >= 11).length;
+                    let xiuCount = last5.length - taiCount;
+                    
+                    let forceTai;
+                    if (taiCount > xiuCount) forceTai = false; // Đang nhiều Tài, ép ra Xỉu
+                    else if (xiuCount > taiCount) forceTai = true; // Đang nhiều Xỉu, ép ra Tài
+                    else forceTai = Math.random() < 0.5; // Hòa thì random
+                    
+                    if (forceTai) currentDice = generateDiceInRange(11, 18);
+                    else currentDice = generateDiceInRange(3, 10);
+                    
+                    console.log(`🔥 [30 PHIÊN] Phiên BIAS: Ép ra ${forceTai ? 'Tài (11-18)' : 'Xỉu (3-10)'}`);
+                } else {
+                    // Thuật toán Normal: Crypto Random bình thường
+                    currentDice = [getRandomDiceValue(), getRandomDiceValue(), getRandomDiceValue()];
+                }
+
+                isRolling = false;
+                rollBtn.disabled = false;
+                lidText.innerText = "Kéo Ra Khỏi Đĩa Để Mở";
+            }, 800);
+        }
+
+        function openLid(dx, dy) {
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const nx = dist === 0 ? 0 : dx / dist;
+            const ny = dist === 0 ? -1 : dy / dist;
+            
+            const flyDist = 500;
+            lid.style.transition = 'transform 0.4s ease-in, opacity 0.4s';
+            lid.style.transform = `translate(${nx * flyDist}px, ${ny * flyDist}px) scale(0.5) rotate(90deg)`;
+            lid.style.opacity = '0';
+            
+            setTimeout(() => {
+                lid.classList.remove('closed');
+                lid.classList.add('open');
+                
+                renderDiceFromArray(currentDice);
+                let total = currentDice.reduce((a, b) => a + b, 0);
+                updateHistory(total);
+            }, 400);
+        }
+
+        // --- XỬ LÝ TƯƠNG TÁC (KÉO VÀ CLICK) ---
+        let startX = 0, startY = 0;
+        let currentX = 0, currentY = 0;
+        let isDragging = false;
+        let isPointerDown = false;
+        
+        // Biến xử lý đếm click (1, 2, 3, 4 lần)
+        let clickCount = 0;
+        let clickTimer = null;
+
+        lid.addEventListener('pointerdown', (e) => {
+            if (isRolling || !lid.classList.contains('closed')) return;
+            isPointerDown = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            currentX = 0;
+            currentY = 0;
+            isDragging = false;
+            lid.style.transition = 'none'; 
+            lid.setPointerCapture(e.pointerId);
+        });
+
+        lid.addEventListener('pointermove', (e) => {
+            if (!isPointerDown || isRolling || !lid.classList.contains('closed')) return;
+            
+            currentX = e.clientX - startX;
+            currentY = e.clientY - startY;
+            const dist = Math.sqrt(currentX * currentX + currentY * currentY);
+            
+            // Nếu di chuyển > 10px thì tính là kéo
+            if (dist > 10) {
+                isDragging = true;
+                lid.style.transform = `translate(${currentX}px, ${currentY}px)`;
+            }
+        });
+
+        lid.addEventListener('pointerup', (e) => {
+            if (!isPointerDown) return; 
+            isPointerDown = false; 
+            
+            if (isRolling || !lid.classList.contains('closed')) return;
+            
+            const dist = Math.sqrt(currentX * currentX + currentY * currentY);
+            
+            if (isDragging) {
+                // XỬ LÝ KÉO
+                if (dist > 130) { 
+                    openLid(currentX, currentY);
+                } else {
+                    lid.style.transition = 'transform 0.3s ease-out';
+                    lid.style.transform = 'translate(0, 0)';
+                    setTimeout(() => {
+                        if(lid.classList.contains('closed')) lid.style.transition = '';
+                    }, 300);
+                }
+                clickCount = 0; // Reset click khi đã kéo
+                clearTimeout(clickTimer);
+            } else {
+                // XỬ LÝ CLICK (CHẠM)
+                clickCount++;
+                clearTimeout(clickTimer);
+
+                // Logic: Lẻ (1, 3, 5) -> 3-10 | Chẵn (2, 4, 6) -> 11-18
+                if (clickCount % 2 !== 0) {
+                    currentDice = generateDiceInRange(3, 10);
+                } else {
+                    currentDice = generateDiceInRange(11, 18);
+                }
+                
+                lid.style.transform = 'translate(0, 0)';
+
+                // Reset bộ đếm click sau 1.5s nếu không click tiếp
+                clickTimer = setTimeout(() => {
+                    clickCount = 0;
+                }, 1500);
+            }
+            isDragging = false;
+        });
+
+        lid.addEventListener('pointercancel', () => {
+            isPointerDown = false;
+            if (isDragging) {
+                lid.style.transition = 'transform 0.3s ease-out';
+                lid.style.transform = 'translate(0, 0)';
+                isDragging = false;
+            }
+        });
+
+        // Khởi tạo
+        rollBtn.addEventListener('click', startNewRound);
+        startNewRound();
+    </script>
+</body>
+</html>
