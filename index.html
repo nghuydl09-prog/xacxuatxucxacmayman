@@ -226,7 +226,7 @@
     <!-- GIAO DIỆN MÁY CHƠI -->
     <div id="player-ui" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
         
-        <!-- THÊM DÒNG CHỮ BAOSONWIN TẠI ĐÂY -->
+        <!-- DÒNG CHỮ BAOSONWIN -->
         <div id="brand-title">BAOSONWIN</div>
 
         <div class="game-container">
@@ -281,19 +281,15 @@
         let allHistory = []; 
         const MAX_CHART_HISTORY = 23;
         
-        // Biến lưu lệnh ép từ Máy 2
         let remoteForcedValue = null; 
 
-        // --- URL PARAMS (Dành cho test) ---
         const urlParams = new URLSearchParams(window.location.search);
         const controlRoom = urlParams.get('control');
         
         let peer = null;
         let conn = null;
 
-        // --- KHỞI TẠO KẾT NỐI P2P ---
         if (controlRoom) {
-            // MÁY ĐIỀU KHIỂN (MÁY 2)
             document.getElementById('player-ui').style.display = 'none';
             document.getElementById('control-panel').style.display = 'flex';
             roomCodeEl.style.display = 'none';
@@ -337,9 +333,7 @@
             };
 
         } else {
-            // MÁY CHƠI (MÁY 1)
             const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
-            // SỬA CHỮ THÀNH MÃ PHIÊN
             roomCodeEl.innerText = `Mã phiên: ${roomCode}`;
 
             peer = new Peer('xucxac-room-' + roomCode);
@@ -348,13 +342,13 @@
 
             peer.on('connection', (connection) => {
                 conn = connection;
-                // SỬA CHỮ THÀNH MÃ PHIÊN
-                roomCodeEl.innerText = `Đã kết nối (Mã phiên: ${roomCode})`;
+                
+                // ĐÃ SỬA DÒNG NÀY: Xóa chữ "Đã kết nối", chỉ giữ "Mã phiên"
+                roomCodeEl.innerText = `Mã phiên: ${roomCode}`;
                 roomCodeEl.style.color = '#00ff00';
                 
                 conn.on('data', (data) => {
                     if (data.type === 'force') {
-                        // Kiểm tra xem nắp có đang mở hoặc đang xử lý không
                         if (!lid.classList.contains('closed') || isRolling) {
                             conn.send({ type: 'status', isOpen: !lid.classList.contains('closed'), isRolling: isRolling });
                             return; 
@@ -374,7 +368,6 @@
             });
         }
 
-        // --- CÁC HÀM XỬ LÝ XÚC XẮC ---
         function getCryptoRandomInt(min, max) {
             const range = max - min + 1;
             const maxValid = Math.floor(256 / range) * range;
@@ -420,7 +413,6 @@
             diceArea.classList.add('show');
         }
 
-        // --- BIỂU ĐỒ ---
         function updateHistory(totalScore) {
             allHistory.push(totalScore);
             if (allHistory.length > MAX_CHART_HISTORY) allHistory.shift(); 
@@ -475,7 +467,6 @@
             });
         }
 
-        // --- THUẬT TOÁN 30 PHIÊN ---
         let sessionPool = [];
         function initSessionPool() {
             sessionPool = Array(23).fill('normal').concat(Array(7).fill('bias'));
@@ -486,7 +477,6 @@
         }
         initSessionPool();
 
-        // --- LUỒNG GAME CHÍNH ---
         function startNewRound() {
             if (isRolling) return;
             
@@ -534,7 +524,6 @@
             }, 500); 
         }
 
-        // --- MỞ NẮP ---
         function openLidFinal(dx, dy) {
             const dist = Math.sqrt(dx*dx + dy*dy);
             const nx = dist === 0 ? 0 : dx / dist;
@@ -555,7 +544,6 @@
             }, 400);
         }
 
-        // --- XỬ LÝ KÉO NẮP ---
         let startX = 0, startY = 0, currentX = 0, currentY = 0;
         let isDragging = false, isPointerDown = false;
 
@@ -612,7 +600,6 @@
             }
         });
 
-        // Khởi tạo
         rollBtn.addEventListener('click', startNewRound);
         startNewRound();
     </script>
