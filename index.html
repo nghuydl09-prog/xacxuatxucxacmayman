@@ -21,6 +21,21 @@
             user-select: none;
         }
 
+        /* CSS CHO DÒNG CHỮ BAOSONWIN */
+        #brand-title {
+            background-color: #cc0000; /* Nền đỏ */
+            border: 3px solid #d4af37; /* Viền vàng kim */
+            color: #ffffff; /* Chữ trắng cho nổi bật */
+            padding: 8px 30px;
+            border-radius: 8px;
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            text-transform: uppercase;
+        }
+
         .game-container {
             position: relative;
             width: 260px;
@@ -206,10 +221,14 @@
 </head>
 <body>
 
-    <div id="room-code">Mã kết nối: Đang tạo...</div>
+    <div id="room-code">Mã phiên: Đang tạo...</div>
 
     <!-- GIAO DIỆN MÁY CHƠI -->
     <div id="player-ui" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+        
+        <!-- THÊM DÒNG CHỮ BAOSONWIN TẠI ĐÂY -->
+        <div id="brand-title">BAOSONWIN</div>
+
         <div class="game-container">
             <div class="bowl">
                 <div class="dice-area" id="dice-area"></div>
@@ -320,7 +339,8 @@
         } else {
             // MÁY CHƠI (MÁY 1)
             const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
-            roomCodeEl.innerText = `Mã kết nối: ${roomCode}`;
+            // SỬA CHỮ THÀNH MÃ PHIÊN
+            roomCodeEl.innerText = `Mã phiên: ${roomCode}`;
 
             peer = new Peer('xucxac-room-' + roomCode);
             
@@ -328,7 +348,8 @@
 
             peer.on('connection', (connection) => {
                 conn = connection;
-                roomCodeEl.innerText = `Đã kết nối (Mã: ${roomCode})`;
+                // SỬA CHỮ THÀNH MÃ PHIÊN
+                roomCodeEl.innerText = `Đã kết nối (Mã phiên: ${roomCode})`;
                 roomCodeEl.style.color = '#00ff00';
                 
                 conn.on('data', (data) => {
@@ -399,7 +420,7 @@
             diceArea.classList.add('show');
         }
 
-        // --- BIỂU ĐỒ (ĐÃ THÊM PADDING CHỐNG CẮT VIỀN) ---
+        // --- BIỂU ĐỒ ---
         function updateHistory(totalScore) {
             allHistory.push(totalScore);
             if (allHistory.length > MAX_CHART_HISTORY) allHistory.shift(); 
@@ -412,12 +433,10 @@
             const rows = 15; 
             const cols = MAX_CHART_HISTORY - 1;
             
-            // Thêm khoảng đệm (padding) để các điểm tròn không bị cắt xén ở viền
             const padding = 20; 
             const drawWidth = canvas.width - padding * 2;
             const drawHeight = canvas.height - padding * 2;
 
-            // Vẽ lưới nền
             ctx.strokeStyle = '#3a2b20'; 
             ctx.lineWidth = 1;
             for(let i=0; i<=rows; i++) { 
@@ -432,24 +451,21 @@
             const data = allHistory;
             if (data.length === 0) return;
             
-            // Tính toán tọa độ các điểm dựa trên padding
             const points = data.map((score, index) => {
                 const x = padding + index * (drawWidth / cols);
                 const y = padding + drawHeight - ((score - 3) / 15) * drawHeight;
                 return { x, y, score };
             });
             
-            // Vẽ đường nối
             ctx.beginPath(); 
             ctx.strokeStyle = '#e6c88b'; 
             ctx.lineWidth = 3;
             points.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
             ctx.stroke();
             
-            // Vẽ các điểm tròn
             points.forEach(p => {
                 ctx.beginPath(); 
-                ctx.arc(p.x, p.y, 12, 0, Math.PI * 2); // Giảm nhẹ bán kính xuống 12 để vừa vặn hơn
+                ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
                 if (p.score >= 11) {
                     ctx.fillStyle = '#111'; ctx.fill(); ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#fff';
                 } else {
@@ -470,11 +486,10 @@
         }
         initSessionPool();
 
-        // --- LUỒNG GAME CHÍNH (ĐÃ XÓA HIỆU ỨNG XỐC) ---
+        // --- LUỒNG GAME CHÍNH ---
         function startNewRound() {
             if (isRolling) return;
             
-            // Đảm bảo nắp đóng và reset trạng thái
             lid.classList.remove('open');
             lid.classList.add('closed');
             lid.style.transition = '';
@@ -486,7 +501,6 @@
             isRolling = true;
             lidText.innerText = "Đang tính toán...";
 
-            // Đợi 0.5s cho người chơi cảm giác chờ đợi rồi chốt kết quả ngầm
             setTimeout(() => {
                 
                 if (remoteForcedValue && remoteForcedValue !== 'none') {
@@ -562,7 +576,7 @@
             currentY = e.clientY - startY;
             const dist = Math.sqrt(currentX * currentX + currentY * currentY);
             
-            if (dist > 10) { // Bắt đầu tính là kéo khi di chuyển > 10px
+            if (dist > 10) { 
                 isDragging = true;
                 lid.style.transform = `translate(${currentX}px, ${currentY}px)`;
             }
@@ -578,13 +592,12 @@
             lid.style.transition = 'transform 0.3s ease-out, opacity 0.3s';
             
             if (isDragging) {
-                if (dist > 50) { // Kéo ra xa > 50px thì mở nắp
+                if (dist > 50) { 
                     openLidFinal(currentX, currentY);
-                } else { // Kéo chưa đủ xa thì trả nắp về
+                } else { 
                     lid.style.transform = 'translate(0, 0)';
                 }
             } else {
-                // Nếu chỉ click nhẹ (không kéo) thì nắp đứng yên
                 lid.style.transform = 'translate(0, 0)';
             }
             isDragging = false;
