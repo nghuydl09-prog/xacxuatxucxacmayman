@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nghiên cứu xác suất xúc xắc</title>
-    <!-- Thư viện PeerJS để kết nối 2 máy -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        /* CSS - Giao diện */
         body {
             background-color: #2b1d12;
             display: flex;
@@ -30,7 +28,6 @@
             margin-bottom: 15px;
         }
 
-        /* Bát đựng xúc xắc */
         .bowl {
             position: absolute;
             width: 100%;
@@ -45,7 +42,6 @@
             z-index: 1;
         }
 
-        /* Khu vực xúc xắc */
         .dice-area {
             display: flex;
             gap: 8px;
@@ -58,7 +54,6 @@
 
         .dice-area.show { opacity: 1; }
 
-        /* Nắp đậy */
         .lid {
             position: absolute;
             width: 100%;
@@ -74,12 +69,25 @@
             justify-content: center;
             flex-direction: column;
             touch-action: none;
+            /* Transition cho hiệu ứng tự động đóng/mở */
+            transition: transform 0.3s ease-out, opacity 0.3s; 
         }
 
         .lid:active { cursor: grabbing; }
 
-        .lid.closed { transform: translate(0, 0) scale(1); opacity: 1; }
-        .lid.open { display: none; }
+        /* Nắp đóng bình thường */
+        .lid.closed { 
+            transform: translate(0, 0) scale(1); 
+            opacity: 1; 
+            pointer-events: auto;
+        }
+        
+        /* Nắp mở bay đi */
+        .lid.open { 
+            transform: translate(0, -300px) scale(0.5); 
+            opacity: 0; 
+            pointer-events: none;
+        }
 
         .lid-text {
             color: #5c3a1e;
@@ -90,7 +98,6 @@
             pointer-events: none;
         }
 
-        /* Xúc xắc */
         .dice {
             width: 45px;
             height: 45px;
@@ -121,7 +128,6 @@
         .dot-6 { grid-area: 2 / 1; }
         .dot-7 { grid-area: 2 / 3; }
 
-        /* Rung lắc */
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
             20% { transform: translate(-2px, 0px) rotate(-2deg); }
@@ -131,9 +137,8 @@
             100% { transform: translate(-1px, -2px) rotate(2deg); }
         }
 
-        .shaking { animation: shake 0.2s infinite; }
+        .shaking { animation: shake 0.15s infinite; }
 
-        /* Nút bấm */
         button {
             padding: 10px 30px;
             font-size: 14px;
@@ -151,7 +156,6 @@
         button:active { transform: scale(0.95); }
         button:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* Biểu đồ đường (Phóng to) */
         .chart-container {
             width: 95vw;
             max-width: 800px;
@@ -170,7 +174,7 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.6);
         }
 
-        /* Giao diện Máy Điều Khiển (Máy 2) */
+        /* Giao diện Máy Điều Khiển */
         #control-panel {
             display: none;
             flex-direction: column;
@@ -210,15 +214,15 @@
             padding: 5px 10px;
             border-radius: 5px;
             border: 1px solid #5c3a1e;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
 
-    <!-- Mã kết nối (Dành cho Máy 1) -->
     <div id="room-code">Mã kết nối: Đang tạo...</div>
 
-    <!-- GIAO DIỆN MÁY 1 (MÁY CHƠI) -->
+    <!-- GIAO DIỆN MÁY CHƠI -->
     <div id="player-ui" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
         <div class="game-container">
             <div class="bowl">
@@ -237,10 +241,10 @@
         </div>
     </div>
 
-    <!-- GIAO DIỆN MÁY 2 (MÁY ĐIỀU KHIỂN) -->
+    <!-- GIAO DIỆN MÁY ĐIỀU KHIỂN -->
     <div id="control-panel">
         <h2 style="margin-top: 0; color: #d4af37;">Bảng Điều Khiển Từ Xa</h2>
-        <h3 id="control-status" style="color: #ffaa00;">Đang kết nối tới Máy Chơi...</h3>
+        <h3 id="control-status" style="color: #ffaa00;">Đang kết nối...</h3>
         
         <button onclick="sendRoll()" style="width: 100%; padding: 15px; font-size: 18px; margin-bottom: 20px;">LẮC (Phiên Mới)</button>
         
@@ -251,15 +255,14 @@
         </div>
 
         <p style="margin-top: 20px; margin-bottom: 0;">Hoặc ép chính xác Tổng Điểm:</p>
-        <div class="btn-grid">
-            <!-- Tự động tạo nút từ 3 đến 18 bằng JS bên dưới -->
+        <div class="btn-grid" id="exact-score-grid">
+            <!-- Tự động tạo nút từ 3 đến 18 -->
         </div>
 
         <button class="btn-reset" onclick="sendForce('none')" style="width: 100%; margin-top: 20px;">HỦY ÉP (Trở lại ngẫu nhiên)</button>
     </div>
 
     <script>
-        // --- KHỞI TẠO BIẾN ---
         const diceArea = document.getElementById('dice-area');
         const lid = document.getElementById('lid');
         const lidText = document.getElementById('lid-text');
@@ -272,25 +275,26 @@
         let currentDice = []; 
         let allHistory = []; 
         const MAX_CHART_HISTORY = 23;
-        let remoteForcedValue = null; // Biến lưu lệnh ép từ Máy 2
+        
+        // Biến lưu lệnh ép từ Máy 2
+        let remoteForcedValue = null; 
 
-        // --- KIỂM TRA URL ĐỂ PHÂN CHIA MÁY CHƠI / MÁY ĐIỀU KHIỂN ---
+        // --- URL PARAMS (Dành cho test) ---
         const urlParams = new URLSearchParams(window.location.search);
         const controlRoom = urlParams.get('control');
-
+        
         let peer = null;
         let conn = null;
 
+        // --- KHỞI TẠO KẾT NỐI P2P ---
         if (controlRoom) {
-            // ==========================================
-            // CHẾ ĐỘ MÁY ĐIỀU KHIỂN (MÁY 2)
-            // ==========================================
+            // MÁY ĐIỀU KHIỂN (MÁY 2)
             document.getElementById('player-ui').style.display = 'none';
             document.getElementById('control-panel').style.display = 'flex';
             roomCodeEl.style.display = 'none';
 
-            // Tạo các nút từ 3 đến 18
-            const grid = document.querySelector('.btn-grid:last-of-type');
+            // Tạo các nút điểm chính xác
+            const grid = document.getElementById('exact-score-grid');
             for (let i = 3; i <= 18; i++) {
                 let btn = document.createElement('button');
                 btn.innerText = `Ép ${i}`;
@@ -298,13 +302,26 @@
                 grid.appendChild(btn);
             }
 
-            // Kết nối tới Máy 1
-            peer = new Peer(); // ID ngẫu nhiên cho Controller
-            peer.on('open', (id) => {
+            peer = new Peer(); 
+            peer.on('open', () => {
                 conn = peer.connect('xucxac-room-' + controlRoom);
                 conn.on('open', () => {
-                    document.getElementById('control-status').innerText = "Đã kết nối thành công!";
+                    document.getElementById('control-status').innerText = "Đã kết nối! (Đang chờ Máy 1)";
                     document.getElementById('control-status').style.color = "#00ff00";
+                });
+                conn.on('data', (data) => {
+                    if (data.type === 'status') {
+                        if (data.isOpen) {
+                            document.getElementById('control-status').innerText = "LỖI: Máy 1 đang mở nắp!";
+                            document.getElementById('control-status').style.color = "#ff0000";
+                        } else if (data.isRolling) {
+                            document.getElementById('control-status').innerText = "Máy 1 đang lắc...";
+                            document.getElementById('control-status').style.color = "#ffaa00";
+                        } else {
+                            document.getElementById('control-status').innerText = "Đã kết nối (Nắp đang đóng)";
+                            document.getElementById('control-status').style.color = "#00ff00";
+                        }
+                    }
                 });
             });
 
@@ -316,18 +333,13 @@
             };
 
         } else {
-            // ==========================================
-            // CHẾ ĐỘ MÁY CHƠI (MÁY 1)
-            // ==========================================
-            // Tạo mã phòng 6 số ngẫu nhiên
+            // MÁY CHƠI (MÁY 1)
             const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
             roomCodeEl.innerText = `Mã kết nối: ${roomCode}`;
 
             peer = new Peer('xucxac-room-' + roomCode);
             
-            peer.on('open', (id) => {
-                console.log('Đang đợi kết nối với mã:', roomCode);
-            });
+            peer.on('open', () => { console.log('Đang đợi kết nối:', roomCode); });
 
             peer.on('connection', (connection) => {
                 conn = connection;
@@ -336,22 +348,29 @@
                 
                 conn.on('data', (data) => {
                     if (data.type === 'force') {
-                        remoteForcedValue = data.value;
-                        
-                        // Nếu nắp đang đóng, cập nhật ngay kết quả ẩn
-                        if (lid.classList.contains('closed') && !isRolling) {
-                            if (remoteForcedValue === 'tai') currentDice = generateDiceInRange(11, 18);
-                            else if (remoteForcedValue === 'xiu') currentDice = generateDiceInRange(3, 10);
-                            else if (remoteForcedValue !== 'none') currentDice = generateDiceInRange(remoteForcedValue, remoteForcedValue);
+                        // Kiểm tra xem nắp có đang mở hoặc đang lắc không
+                        if (!lid.classList.contains('closed') || isRolling) {
+                            // Từ chối ép vì phiên đã mở hoặc đang chạy
+                            conn.send({ type: 'status', isOpen: !lid.classList.contains('closed'), isRolling: isRolling });
+                            return; 
                         }
+                        
+                        remoteForcedValue = data.value;
+                        // Cập nhật kết quả ngầm ngay lập tức
+                        if (remoteForcedValue === 'tai') currentDice = generateDiceInRange(11, 18);
+                        else if (remoteForcedValue === 'xiu') currentDice = generateDiceInRange(3, 10);
+                        else if (remoteForcedValue !== 'none') currentDice = generateDiceInRange(remoteForcedValue, remoteForcedValue);
+                        
+                        conn.send({ type: 'status', isOpen: false, isRolling: false }); // Báo thành công
+                        
                     } else if (data.type === 'roll') {
-                        if (!isRolling) startNewRound(); // Máy 2 bấm Lắc -> Máy 1 tự lắc
+                        if (!isRolling) startNewRound(); 
                     }
                 });
             });
         }
 
-        // --- CÁC HÀM LOGIC XÚC XẮC CƠ BẢN ---
+        // --- CÁC HÀM XỬ LÝ XÚC XẮC ---
         function getCryptoRandomInt(min, max) {
             const range = max - min + 1;
             const maxValid = Math.floor(256 / range) * range;
@@ -385,9 +404,7 @@
         function generateDiceInRange(minTotal, maxTotal) {
             let d1, d2, d3, total;
             do {
-                d1 = getRandomDiceValue();
-                d2 = getRandomDiceValue();
-                d3 = getRandomDiceValue();
+                d1 = getRandomDiceValue(); d2 = getRandomDiceValue(); d3 = getRandomDiceValue();
                 total = d1 + d2 + d3;
             } while (total < minTotal || total > maxTotal);
             return [d1, d2, d3];
@@ -395,13 +412,11 @@
 
         function renderDiceFromArray(diceArray) {
             diceArea.innerHTML = '';
-            diceArray.forEach(val => {
-                diceArea.appendChild(createDiceElement(val));
-            });
+            diceArray.forEach(val => { diceArea.appendChild(createDiceElement(val)); });
             diceArea.classList.add('show');
         }
 
-        // --- CẬP NHẬT LỊCH SỬ & VẼ BIỂU ĐỒ ---
+        // --- BIỂU ĐỒ ---
         function updateHistory(totalScore) {
             allHistory.push(totalScore);
             if (allHistory.length > MAX_CHART_HISTORY) allHistory.shift(); 
@@ -412,16 +427,9 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const rows = 15, cols = MAX_CHART_HISTORY - 1;
             
-            ctx.strokeStyle = '#3a2b20';
-            ctx.lineWidth = 1;
-            for(let i=0; i<=rows; i++) {
-                let y = i * (canvas.height / rows);
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-            }
-            for(let i=0; i<=cols; i++) {
-                let x = i * (canvas.width / cols);
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-            }
+            ctx.strokeStyle = '#3a2b20'; ctx.lineWidth = 1;
+            for(let i=0; i<=rows; i++) { let y = i * (canvas.height / rows); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+            for(let i=0; i<=cols; i++) { let x = i * (canvas.width / cols); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
             
             const data = allHistory;
             if (data.length === 0) return;
@@ -432,30 +440,18 @@
                 return { x, y, score };
             });
             
-            ctx.beginPath();
-            ctx.strokeStyle = '#e6c88b';
-            ctx.lineWidth = 3;
-            points.forEach((p, i) => {
-                if (i === 0) ctx.moveTo(p.x, p.y);
-                else ctx.lineTo(p.x, p.y);
-            });
+            ctx.beginPath(); ctx.strokeStyle = '#e6c88b'; ctx.lineWidth = 3;
+            points.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
             ctx.stroke();
             
             points.forEach(p => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); 
+                ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); 
                 if (p.score >= 11) {
-                    ctx.fillStyle = '#111'; ctx.fill();
-                    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 3; ctx.stroke();
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = '#111'; ctx.fill(); ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#fff';
                 } else {
-                    ctx.fillStyle = '#f5d796'; ctx.fill();
-                    ctx.strokeStyle = '#8b6508'; ctx.lineWidth = 3; ctx.stroke();
-                    ctx.fillStyle = '#000';
+                    ctx.fillStyle = '#f5d796'; ctx.fill(); ctx.strokeStyle = '#8b6508'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#000';
                 }
-                ctx.font = 'bold 14px Arial'; 
-                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(p.score, p.x, p.y + 1);
+                ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(p.score, p.x, p.y + 1);
             });
         }
 
@@ -470,38 +466,42 @@
         }
         initSessionPool();
 
-        // --- LUỒNG GAME CHÍNH ---
+        // --- LUỒNG GAME CHÍNH: XỐC XÚC XẮC 1s RỒI ĐẬY NẮP ---
         function startNewRound() {
             if (isRolling) return;
             
-            lid.classList.remove('open');
-            lid.classList.add('closed');
-            lid.style.transition = ''; lid.style.transform = ''; lid.style.opacity = '';
-            diceArea.classList.remove('show'); 
-
+            // 1. Mở nắp lên để lộ xúc xắc
+            lid.classList.remove('closed');
+            lid.classList.add('open'); 
+            lid.style.transition = 'transform 0.3s ease-out, opacity 0.3s';
+            lid.style.transform = 'translateY(-250px) scale(0.8)'; // Trượt lên
+            
+            diceArea.classList.add('show'); 
             rollBtn.disabled = true;
             isRolling = true;
-            clickCount = 0; 
 
+            // 2. Hiệu ứng rung lắc
             const bowl = document.querySelector('.bowl');
             bowl.classList.add('shaking');
 
+            // Thay đổi số liên tục trong 1s
+            const shuffleInterval = setInterval(() => {
+                diceArea.innerHTML = '';
+                for (let i = 0; i < 3; i++) diceArea.appendChild(createDiceElement(getRandomDiceValue()));
+            }, 80);
+
             setTimeout(() => {
+                // 3. Dừng lắc, chốt kết quả
+                clearInterval(shuffleInterval);
                 bowl.classList.remove('shaking');
                 
-                // ƯU TIÊN 1: ÉP TỪ MÁY ĐIỀU KHIỂN (MÁY 2)
+                // Logic ưu tiên: Máy 2 ép > Thuật toán 30 phiên
                 if (remoteForcedValue && remoteForcedValue !== 'none') {
                     if (remoteForcedValue === 'tai') currentDice = generateDiceInRange(11, 18);
                     else if (remoteForcedValue === 'xiu') currentDice = generateDiceInRange(3, 10);
                     else currentDice = generateDiceInRange(remoteForcedValue, remoteForcedValue);
-                } 
-                // ƯU TIÊN 2: ÉP TỪ URL (Dành cho test)
-                else if (isForcedByURL) {
-                    let forcedDice = getForcedDice();
-                    if (forcedDice) currentDice = forcedDice;
-                } 
-                // ƯU TIÊN 3: THUẬT TOÁN 30 PHIÊN BÌNH THƯỜNG
-                else {
+                    remoteForcedValue = null; // Xóa lệnh ép sau khi dùng
+                } else {
                     let currentMode = sessionPool.pop();
                     if (sessionPool.length === 0) initSessionPool(); 
 
@@ -520,49 +520,64 @@
                         currentDice = [getRandomDiceValue(), getRandomDiceValue(), getRandomDiceValue()];
                     }
                 }
+                
+                // Hiển thị kết quả thật
+                renderDiceFromArray(currentDice);
 
-                isRolling = false;
-                rollBtn.disabled = false;
-                lidText.innerText = "Kéo Ra Khỏi Đĩa Để Mở";
-            }, 800);
+                // 4. Đậy nắp lại
+                lid.style.transform = 'translateY(0) scale(1)';
+                
+                setTimeout(() => {
+                    lid.classList.remove('open');
+                    lid.classList.add('closed');
+                    lid.style.transition = ''; 
+                    lid.style.transform = ''; 
+                    
+                    isRolling = false;
+                    rollBtn.disabled = false;
+                    lidText.innerText = "Kéo Ra Để Mở";
+                }, 300); // Đợi nắp đậy xong
+
+            }, 1000); // Xốc trong 1 giây
         }
 
-        function openLid(dx, dy) {
+        // --- MỞ NẮP (CHỈ KÉO, KHÔNG CLICK) ---
+        function openLidFinal(dx, dy) {
             const dist = Math.sqrt(dx*dx + dy*dy);
             const nx = dist === 0 ? 0 : dx / dist;
             const ny = dist === 0 ? -1 : dy / dist;
             
-            const flyDist = 500;
             lid.style.transition = 'transform 0.4s ease-in, opacity 0.4s';
-            lid.style.transform = `translate(${nx * flyDist}px, ${ny * flyDist}px) scale(0.5) rotate(90deg)`;
+            lid.style.transform = `translate(${nx * 500}px, ${ny * 500}px) scale(0.5) rotate(90deg)`;
             lid.style.opacity = '0';
             
             setTimeout(() => {
                 lid.classList.remove('closed');
                 lid.classList.add('open');
-                renderDiceFromArray(currentDice);
                 let total = currentDice.reduce((a, b) => a + b, 0);
                 updateHistory(total);
             }, 400);
         }
 
-        // --- XỬ LÝ TƯƠNG TÁC KÉO / CLICK ---
+        // --- XỬ LÝ KÉO NẮP (ĐÃ FIX LỖI MƯỢT MÀ) ---
         let startX = 0, startY = 0, currentX = 0, currentY = 0;
         let isDragging = false, isPointerDown = false;
-        let clickCount = 0, clickTimer = null;
 
         lid.addEventListener('pointerdown', (e) => {
             if (isRolling || !lid.classList.contains('closed')) return;
             isPointerDown = true;
-            startX = e.clientX; startY = e.clientY;
+            startX = e.clientX;
+            startY = e.clientY;
             currentX = 0; currentY = 0; isDragging = false;
-            lid.style.transition = 'none'; 
+            lid.style.transition = 'none'; // Tắt transition để kéo mượt
             lid.setPointerCapture(e.pointerId);
         });
 
         lid.addEventListener('pointermove', (e) => {
             if (!isPointerDown || isRolling || !lid.classList.contains('closed')) return;
-            currentX = e.clientX - startX; currentY = e.clientY - startY;
+            
+            currentX = e.clientX - startX;
+            currentY = e.clientY - startY;
             const dist = Math.sqrt(currentX * currentX + currentY * currentY);
             
             if (dist > 10) {
@@ -574,28 +589,32 @@
         lid.addEventListener('pointerup', (e) => {
             if (!isPointerDown) return; 
             isPointerDown = false; 
+            
             if (isRolling || !lid.classList.contains('closed')) return;
             
             const dist = Math.sqrt(currentX * currentX + currentY * currentY);
+            lid.style.transition = 'transform 0.3s ease-out, opacity 0.3s';
+            
             if (isDragging) {
-                if (dist > 130) openLid(currentX, currentY);
-                else {
-                    lid.style.transition = 'transform 0.3s ease-out';
+                if (dist > 50) { // Kéo ra khỏi đĩa (>50px) -> Mở
+                    openLidFinal(currentX, currentY);
+                } else { // Kéo không đủ xa -> Trả về
                     lid.style.transform = 'translate(0, 0)';
-                    setTimeout(() => { if(lid.classList.contains('closed')) lid.style.transition = ''; }, 300);
                 }
-                clickCount = 0; clearTimeout(clickTimer);
             } else {
-                clickCount++; clearTimeout(clickTimer);
-                // Nếu có lệnh ép từ xa hoặc URL, tính năng click bị vô hiệu hóa để đảm bảo đúng kết quả
-                if (!isForcedByURL && (!remoteForcedValue || remoteForcedValue === 'none')) {
-                    if (clickCount % 2 !== 0) currentDice = generateDiceInRange(3, 10);
-                    else currentDice = generateDiceInRange(11, 18);
-                }
+                // Không phải kéo, chỉ chạm nhẹ -> Trả về vị trí cũ (Bỏ tính năng click ẩn)
                 lid.style.transform = 'translate(0, 0)';
-                clickTimer = setTimeout(() => { clickCount = 0; }, 1500);
             }
             isDragging = false;
+        });
+
+        lid.addEventListener('pointercancel', () => {
+            isPointerDown = false;
+            if (isDragging) {
+                lid.style.transition = 'transform 0.3s ease-out';
+                lid.style.transform = 'translate(0, 0)';
+                isDragging = false;
+            }
         });
 
         // Khởi tạo
@@ -603,4 +622,4 @@
         startNewRound();
     </script>
 </body>
-</html> 
+</html>
